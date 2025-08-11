@@ -405,26 +405,8 @@ checkov             # Policy scanner
 | **AWS Account** | Admin access or sufficient IAM permissions |
 | **VPC Limits** | Default VPC limits sufficient |
 | **EC2 Limits** | Sufficient for chosen instance types |
-| **S3 Buckets** | For Terraform state storage |
 | **Route53** | For DNS management |
 
-### Terraform State Backend
-
-```bash
-# Create S3 buckets for state
-aws s3 mb s3://nexus-commerce-terraform-state-dev
-aws s3 mb s3://nexus-commerce-terraform-state-staging  
-aws s3 mb s3://nexus-commerce-terraform-state-prod
-
-# Create DynamoDB tables for locking
-aws dynamodb create-table \
-    --table-name nexus-commerce-terraform-locks-dev \
-    --attribute-definitions AttributeName=LockID,AttributeType=S \
-    --key-schema AttributeName=LockID,KeyType=HASH \
-    --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-```
-
----
 
 ## 🚀 Quick Start
 
@@ -947,4 +929,5 @@ Made with ❤️ by the NexusCommerce Platform Team
 ![DevOps](https://img.shields.io/badge/DevOps-Ready-orange?style=for-the-badge)
 
 </div>
+
 
