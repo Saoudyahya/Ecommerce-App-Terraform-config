@@ -795,70 +795,6 @@ graph TB
 
 ---
 
-## 📊 Monitoring
-
-### Observability Stack
-
-```mermaid
-graph TB
-    subgraph "Data Collection"
-        APPS[Microservices]
-        INFRA[Infrastructure]
-        K8S[Kubernetes]
-    end
-    
-    subgraph "Metrics Pipeline"
-        PROM[Prometheus]
-        ALERT[Alertmanager]
-        GRAF[Grafana]
-    end
-    
-    subgraph "Logging Pipeline"
-        FLUENT[FluentBit]
-        ES[Elasticsearch]
-        KIBANA[Kibana]
-    end
-    
-    subgraph "Tracing Pipeline"
-        JAEGER[Jaeger]
-        ZIPKIN[Zipkin]
-        TEMPO[Tempo]
-    end
-    
-    subgraph "Service Mesh Observability"
-        KIALI[Kiali]
-        ENVOY[Envoy Metrics]
-    end
-    
-    APPS --> PROM
-    APPS --> FLUENT
-    APPS --> JAEGER
-    
-    INFRA --> PROM
-    INFRA --> FLUENT
-    
-    K8S --> PROM
-    K8S --> FLUENT
-    
-    PROM --> ALERT
-    PROM --> GRAF
-    ALERT --> GRAF
-    
-    FLUENT --> ES
-    ES --> KIBANA
-    
-    JAEGER --> TEMPO
-    ZIPKIN --> TEMPO
-    TEMPO --> GRAF
-    
-    PROM --> KIALI
-    ENVOY --> KIALI
-    
-    style PROM fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
-    style GRAF fill:#F46800,stroke:#fff,stroke-width:2px,color:#fff
-    style ES fill:#005571,stroke:#fff,stroke-width:2px,color:#fff
-    style KIALI fill:#466BB0,stroke:#fff,stroke-width:2px,color:#fff
-```
 
 ### Key Metrics Monitored
 
@@ -1011,3 +947,4 @@ Made with ❤️ by the NexusCommerce Platform Team
 ![DevOps](https://img.shields.io/badge/DevOps-Ready-orange?style=for-the-badge)
 
 </div>
+
