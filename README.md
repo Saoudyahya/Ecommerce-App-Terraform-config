@@ -13,7 +13,10 @@
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=Prometheus&logoColor=white)
 ![Grafana](https://img.shields.io/badge/grafana-%23F46800.svg?style=for-the-badge&logo=grafana&logoColor=white)
 ![Istio](https://img.shields.io/badge/Istio-466BB0?style=for-the-badge&logo=istio&logoColor=white)
+![Kiali](https://img.shields.io/badge/Kiali-0F1419?style=for-the-badge&logo=kiali&logoColor=white)
 ![ArgoCD](https://img.shields.io/badge/ArgoCD-EF7B4D?style=for-the-badge&logo=argo&logoColor=white)
+![Docker Hub](https://img.shields.io/badge/Docker%20Hub-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Zipkin](https://img.shields.io/badge/Zipkin-FF6B35?style=for-the-badge&logo=zipkin&logoColor=white)
 
 **Infrastructure as Code for Cloud-Native E-Commerce Microservices Platform**
 
@@ -22,7 +25,6 @@
 [![Terraform](https://img.shields.io/badge/Terraform-1.5+-623CE4?logo=terraform)](https://terraform.io)
 [![AWS Provider](https://img.shields.io/badge/AWS_Provider-5.0+-FF9900?logo=amazon-aws)](https://registry.terraform.io/providers/hashicorp/aws)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/Security-tfsec%20%7C%20checkov-success)](https://github.com/aquasecurity/tfsec)
 
 </div>
 
@@ -37,25 +39,24 @@
 - [Modules](#-modules)
 - [Environments](#-environments)
 - [Deployment Workflow](#-deployment-workflow)
-- [Security](#-security)
+- [Service Mesh Observability](#-service-mesh-observability)
 - [Monitoring](#-monitoring)
-- [Cost Management](#-cost-management)
 - [Contributing](#-contributing)
 
 ---
 
 ## 🌟 Overview
 
-This repository contains Terraform Infrastructure as Code (IaC) for provisioning and managing the complete cloud infrastructure required to run the **NexusCommerce** microservices platform. It follows best practices for multi-environment deployments, security, and cost optimization.
+This repository contains Terraform Infrastructure as Code (IaC) for provisioning and managing the complete cloud infrastructure required to run the **NexusCommerce** microservices platform. It follows best practices for multi-environment deployments and cost optimization with comprehensive service mesh observability.
 
 ### 🎯 Key Features
 
 - **🏗️ Modular Architecture**: Reusable, composable Terraform modules
 - **🌍 Multi-Environment**: Separate configurations for dev, staging, and production
-- **🔒 Security First**: Built-in security controls and compliance
-- **📊 Observability Ready**: Complete monitoring and logging infrastructure
-- **💰 Cost Optimized**: Right-sized resources with auto-scaling
+- **📊 Service Mesh Observability**: Complete Istio + Kiali monitoring
+- **🔍 Advanced Monitoring**: Prometheus, Grafana, and ELK stack integration
 - **🔄 GitOps Integration**: Seamlessly integrates with ArgoCD workflows
+- **🐳 Container Registry**: Docker Hub integration for image management
 
 ---
 
@@ -100,8 +101,6 @@ graph TB
         
         subgraph "External Services"
             ATLAS[(MongoDB Atlas)]
-            ECR[Elastic Container Registry]
-            S3[S3 Buckets]
             SECRETS[Secrets Manager]
         end
     end
@@ -110,6 +109,7 @@ graph TB
         MONGO_CLOUD[MongoDB Cloud]
         ROUTE53[Route 53 DNS]
         ACM[SSL Certificates]
+        DOCKER_HUB[Docker Hub Registry]
     end
     
     ALB --> CONTROL
@@ -129,9 +129,8 @@ graph TB
     RDS --> DB5
     
     NG1 --> ATLAS
-    NG1 --> ECR
-    NG1 --> S3
     NG1 --> SECRETS
+    NG1 --> DOCKER_HUB
     
     ATLAS --> MONGO_CLOUD
     ALB --> ROUTE53
@@ -144,6 +143,64 @@ graph TB
     style MSK fill:#000,stroke:#fff,stroke-width:2px,color:#fff
     style ES fill:#005571,stroke:#fff,stroke-width:2px,color:#fff
     style ATLAS fill:#4EA94B,stroke:#fff,stroke-width:2px,color:#fff
+    style DOCKER_HUB fill:#2496ED,stroke:#fff,stroke-width:2px,color:#fff
+```
+
+### Service Mesh Architecture with Kiali
+
+```mermaid
+graph TB
+    subgraph "Istio Service Mesh"
+        subgraph "Control Plane"
+            PILOT[Pilot - Traffic Management]
+            CITADEL[Citadel - Security]
+            GALLEY[Galley - Configuration]
+        end
+        
+        subgraph "Data Plane"
+            ENVOY1[Envoy Proxy - Service A]
+            ENVOY2[Envoy Proxy - Service B]
+            ENVOY3[Envoy Proxy - Service C]
+        end
+        
+        subgraph "Observability"
+            KIALI[Kiali - Service Graph]
+            ZIPKIN[Zipkin - Tracing]
+            PROM[Prometheus - Metrics]
+            GRAFANA[Grafana - Dashboards]
+        end
+    end
+    
+    subgraph "Microservices"
+        PRODUCT[Product Service]
+        ORDER[Order Service]
+        PAYMENT[Payment Service]
+        SHIPPING[Shipping Service]
+    end
+    
+    PILOT --> ENVOY1
+    PILOT --> ENVOY2
+    PILOT --> ENVOY3
+    
+    ENVOY1 --> PRODUCT
+    ENVOY2 --> ORDER
+    ENVOY3 --> PAYMENT
+    
+    ENVOY1 --> KIALI
+    ENVOY2 --> KIALI
+    ENVOY3 --> KIALI
+    
+    ENVOY1 --> ZIPKIN
+    ENVOY2 --> ZIPKIN
+    ENVOY3 --> ZIPKIN
+    
+    KIALI --> PROM
+    PROM --> GRAFANA
+    
+    style KIALI fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
+    style PILOT fill:#466BB0,stroke:#fff,stroke-width:2px,color:#fff
+    style PROM fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
+    style GRAFANA fill:#F46800,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ### Terraform Module Dependencies
@@ -152,7 +209,6 @@ graph TB
 graph TD
     subgraph "Foundation Layer"
         NET[networking]
-        SEC[security]
         IAM[iam-roles]
     end
     
@@ -170,6 +226,7 @@ graph TD
     
     subgraph "Service Mesh"
         ISTIO[istio]
+        KIALI[kiali]
     end
     
     subgraph "GitOps"
@@ -180,7 +237,7 @@ graph TD
         ELK[elasticsearch]
         PROM[prometheus]
         GRAF[grafana]
-        KIALI[kiali]
+        ZIPKIN[zipkin]
     end
     
     subgraph "Environment Orchestration"
@@ -196,11 +253,6 @@ graph TD
     NET --> KAFKA
     NET --> LB
     
-    SEC --> K8S
-    SEC --> PG
-    SEC --> REDIS
-    SEC --> KAFKA
-    
     IAM --> K8S
     IAM --> ARGO
     
@@ -209,9 +261,11 @@ graph TD
     K8S --> ELK
     K8S --> PROM
     K8S --> GRAF
+    K8S --> ZIPKIN
     
     ISTIO --> KIALI
     PROM --> GRAF
+    PROM --> KIALI
     
     DEV --> NET
     DEV --> K8S
@@ -220,10 +274,12 @@ graph TD
     DEV --> REDIS
     DEV --> KAFKA
     DEV --> ISTIO
+    DEV --> KIALI
     DEV --> ARGO
     DEV --> ELK
     DEV --> PROM
     DEV --> GRAF
+    DEV --> ZIPKIN
     
     STAGING --> NET
     STAGING --> K8S
@@ -232,10 +288,12 @@ graph TD
     STAGING --> REDIS
     STAGING --> KAFKA
     STAGING --> ISTIO
+    STAGING --> KIALI
     STAGING --> ARGO
     STAGING --> ELK
     STAGING --> PROM
     STAGING --> GRAF
+    STAGING --> ZIPKIN
     
     PROD --> NET
     PROD --> K8S
@@ -244,10 +302,12 @@ graph TD
     PROD --> REDIS
     PROD --> KAFKA
     PROD --> ISTIO
+    PROD --> KIALI
     PROD --> ARGO
     PROD --> ELK
     PROD --> PROM
     PROD --> GRAF
+    PROD --> ZIPKIN
     
     style NET fill:#FF6B6B,stroke:#fff,stroke-width:2px,color:#fff
     style K8S fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
@@ -256,6 +316,7 @@ graph TD
     style REDIS fill:#DC382D,stroke:#fff,stroke-width:2px,color:#fff
     style KAFKA fill:#000,stroke:#fff,stroke-width:2px,color:#fff
     style ISTIO fill:#466BB0,stroke:#fff,stroke-width:2px,color:#fff
+    style KIALI fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
     style ARGO fill:#EF7B4D,stroke:#fff,stroke-width:2px,color:#fff
     style ELK fill:#005571,stroke:#fff,stroke-width:2px,color:#fff
     style PROM fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
@@ -300,13 +361,8 @@ graph LR
     end
     
     subgraph "State Management"
-        S3_DEV[S3: terraform-state-dev]
-        S3_STAGE[S3: terraform-state-staging]
-        S3_PROD[S3: terraform-state-prod]
-        
-        DYNAMO_DEV[DynamoDB: locks-dev]
-        DYNAMO_STAGE[DynamoDB: locks-staging]
-        DYNAMO_PROD[DynamoDB: locks-prod]
+        LOCAL_STATE[Local State Files]
+        REMOTE_BACKEND[Remote Backend]
     end
     
     BRANCH1 --> WS1
@@ -316,20 +372,18 @@ graph LR
     WS1 --> DEV_VPC
     WS1 --> DEV_EKS
     WS1 --> DEV_RDS
-    WS1 --> S3_DEV
-    WS1 --> DYNAMO_DEV
     
     WS2 --> STAGE_VPC
     WS2 --> STAGE_EKS
     WS2 --> STAGE_RDS
-    WS2 --> S3_STAGE
-    WS2 --> DYNAMO_STAGE
     
     WS3 --> PROD_VPC
     WS3 --> PROD_EKS
     WS3 --> PROD_RDS
-    WS3 --> S3_PROD
-    WS3 --> DYNAMO_PROD
+    
+    WS1 --> LOCAL_STATE
+    WS2 --> REMOTE_BACKEND
+    WS3 --> REMOTE_BACKEND
     
     style DEV_VPC fill:#87CEEB,stroke:#fff,stroke-width:2px,color:#000
     style STAGE_VPC fill:#FFB347,stroke:#fff,stroke-width:2px,color:#000
@@ -346,7 +400,7 @@ graph TB
         🗄️ RDS: db.t3.micro
         🔄 Redis: cache.t3.micro
         📊 Kafka: kafka.t3.small
-        💰 Est. Cost: $200-400/month
+        🕸️ Istio + Kiali: Basic setup
         "]
     end
     
@@ -356,7 +410,7 @@ graph TB
         🗄️ RDS: db.t3.small
         🔄 Redis: cache.t3.small
         📊 Kafka: kafka.m5.large
-        💰 Est. Cost: $400-800/month
+        🕸️ Istio + Kiali: Full observability
         "]
     end
     
@@ -366,7 +420,7 @@ graph TB
         🗄️ RDS: db.r5.xlarge (Multi-AZ)
         🔄 Redis: cache.r5.large (Cluster)
         📊 Kafka: kafka.m5.xlarge (HA)
-        💰 Est. Cost: $1000-5000+/month
+        🕸️ Istio + Kiali: HA + Performance
         "]
     end
     
@@ -394,8 +448,6 @@ kubectl >= 1.24
 helm >= 3.8         # For Kubernetes package management
 k9s                 # Kubernetes CLI tool
 terragrunt          # Terraform wrapper (optional)
-tfsec               # Security scanner
-checkov             # Policy scanner
 ```
 
 ### AWS Requirements
@@ -406,7 +458,7 @@ checkov             # Policy scanner
 | **VPC Limits** | Default VPC limits sufficient |
 | **EC2 Limits** | Sufficient for chosen instance types |
 | **Route53** | For DNS management |
-
+| **Docker Hub** | For container image registry |
 
 ## 🚀 Quick Start
 
@@ -423,6 +475,7 @@ aws configure
 # Set up environment variables
 export AWS_REGION=us-west-2
 export TF_VAR_environment=dev
+export DOCKER_HUB_USERNAME=your-username
 ```
 
 ### 2. Deploy Development Environment
@@ -441,7 +494,7 @@ terraform plan -var-file="terraform.tfvars"
 terraform apply -var-file="terraform.tfvars"
 ```
 
-### 3. Configure kubectl
+### 3. Configure kubectl and Service Mesh
 
 ```bash
 # Update kubeconfig
@@ -452,6 +505,9 @@ aws eks update-kubeconfig \
 # Verify cluster access
 kubectl get nodes
 kubectl get namespaces
+
+# Access Kiali dashboard
+kubectl port-forward -n istio-system svc/kiali 20001:20001
 ```
 
 ### 4. Verify Deployment
@@ -463,6 +519,9 @@ terraform output
 # Test connectivity
 kubectl get pods -A
 kubectl get svc -A
+
+# Verify Istio and Kiali
+kubectl get pods -n istio-system
 ```
 
 ---
@@ -474,8 +533,7 @@ kubectl get svc -A
 | Module | Purpose | Dependencies | Outputs |
 |--------|---------|--------------|---------|
 | **🌐 networking** | VPC, subnets, security groups | None | vpc_id, subnet_ids, security_groups |
-| **🔐 security** | IAM roles, policies, KMS keys | networking | roles, policies, keys |
-| **☸️ kubernetes** | EKS cluster and node groups | networking, security | cluster_endpoint, node_groups |
+| **☸️ kubernetes** | EKS cluster and node groups | networking | cluster_endpoint, node_groups |
 | **⚖️ load-balancer** | ALB, target groups, listeners | networking | alb_arn, target_groups |
 
 ### Data Layer Modules
@@ -487,11 +545,20 @@ kubectl get svc -A
 | **🔴 redis** | Caching layer | ElastiCache | Clustering, failover |
 | **📊 kafka** | Message streaming | Amazon MSK | Multi-broker, encryption |
 
-### Platform Modules
+### Service Mesh & Observability Modules
 
 | Module | Purpose | Technology | Features |
 |--------|---------|------------|----------|
 | **🕸️ istio** | Service mesh | Istio | mTLS, traffic management |
+| **🔍 kiali** | Service mesh observability | Kiali | Service graph, traffic analysis |
+| **📈 prometheus** | Metrics collection | Prometheus | Time-series metrics |
+| **📊 grafana** | Monitoring dashboards | Grafana | Custom dashboards, alerting |
+| **🔍 zipkin** | Distributed tracing | Zipkin | Request tracing |
+
+### Platform Modules
+
+| Module | Purpose | Technology | Features |
+|--------|---------|------------|----------|
 | **🔄 argocd** | GitOps deployment | ArgoCD | App of apps, RBAC |
 | **📈 observability** | Monitoring stack | ELK, Prometheus, Grafana | Dashboards, alerting |
 
@@ -510,7 +577,8 @@ flowchart TD
     
     DEV_PLAN --> DEV_APPLY[Auto Apply - Dev]
     DEV_APPLY --> DEV_TEST[Integration Tests]
-    DEV_TEST --> DEV_SUCCESS{Tests Pass?}
+    DEV_TEST --> KIALI_CHECK[Kiali Service Graph Check]
+    KIALI_CHECK --> DEV_SUCCESS{Tests Pass?}
     
     DEV_SUCCESS -->|Yes| PR[Create Pull Request]
     DEV_SUCCESS -->|No| FIX[Fix Issues]
@@ -541,6 +609,7 @@ flowchart TD
     style STAGE_APPLY fill:#FFB347,stroke:#333,stroke-width:2px
     style PROD_APPLY fill:#FF6B6B,stroke:#333,stroke-width:2px
     style APPROVAL fill:#9370DB,stroke:#333,stroke-width:2px,color:#fff
+    style KIALI_CHECK fill:#0F1419,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### Environment Configurations
@@ -562,6 +631,13 @@ postgresql_config = {
   allocated_storage = 20
   backup_retention_period = 7
 }
+
+istio_config = {
+  enable_kiali = true
+  kiali_config = {
+    auth_strategy = "anonymous"
+  }
+}
 ```
 
 #### Staging
@@ -581,6 +657,18 @@ postgresql_config = {
   allocated_storage = 100
   multi_az         = true
   backup_retention_period = 14
+}
+
+istio_config = {
+  enable_kiali = true
+  kiali_config = {
+    auth_strategy = "token"
+    external_services = {
+      prometheus = true
+      grafana = true
+      zipkin = true
+    }
+  }
 }
 ```
 
@@ -610,6 +698,31 @@ postgresql_config = {
   backup_retention_period = 30
   performance_insights_enabled = true
 }
+
+istio_config = {
+  enable_kiali = true
+  kiali_config = {
+    auth_strategy = "openid"
+    external_services = {
+      prometheus = true
+      grafana = true
+      zipkin = true
+    }
+    deployment = {
+      replicas = 2
+      resources = {
+        requests = {
+          cpu = "100m"
+          memory = "128Mi"
+        }
+        limits = {
+          cpu = "1"
+          memory = "1Gi"
+        }
+      }
+    }
+  }
+}
 ```
 
 ---
@@ -624,17 +737,16 @@ graph TB
         TRIGGER[Git Push/PR]
         LINT[Terraform Lint]
         VALIDATE[Terraform Validate]
-        SECURITY[Security Scan]
         PLAN[Terraform Plan]
         APPLY[Terraform Apply]
         TEST[Infrastructure Tests]
+        KIALI_DEPLOY[Deploy Kiali Configuration]
     end
     
-    subgraph "Security Gates"
-        TFSEC[tfsec Scan]
-        CHECKOV[Checkov Scan]
-        SNYK[Snyk Scan]
-        POLICY[OPA Policy Check]
+    subgraph "Docker Hub Integration"
+        BUILD[Build Images]
+        PUSH[Push to Docker Hub]
+        SCAN[Image Scanning]
     end
     
     subgraph "Approval Process"
@@ -645,17 +757,10 @@ graph TB
     
     TRIGGER --> LINT
     LINT --> VALIDATE
-    VALIDATE --> SECURITY
-    
-    SECURITY --> TFSEC
-    SECURITY --> CHECKOV
-    SECURITY --> SNYK
-    SECURITY --> POLICY
-    
-    TFSEC --> PLAN
-    CHECKOV --> PLAN
-    SNYK --> PLAN
-    POLICY --> PLAN
+    VALIDATE --> BUILD
+    BUILD --> PUSH
+    PUSH --> SCAN
+    SCAN --> PLAN
     
     PLAN --> AUTO
     PLAN --> MANUAL
@@ -664,132 +769,201 @@ graph TB
     MANUAL --> SLACK
     SLACK --> APPLY
     
-    APPLY --> TEST
+    APPLY --> KIALI_DEPLOY
+    KIALI_DEPLOY --> TEST
     
     style TRIGGER fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
-    style SECURITY fill:#FF5722,stroke:#fff,stroke-width:2px,color:#fff
+    style KIALI_DEPLOY fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
     style MANUAL fill:#9C27B0,stroke:#fff,stroke-width:2px,color:#fff
     style APPLY fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
-```
-
-### State Management Strategy
-
-```mermaid
-graph LR
-    subgraph "Remote State Backend"
-        S3[S3 Bucket]
-        DYNAMO[DynamoDB Lock Table]
-        KMS[KMS Encryption]
-    end
-    
-    subgraph "Local Development"
-        DEV_TF[terraform apply]
-        DEV_STATE[Local State Cache]
-    end
-    
-    subgraph "CI/CD Pipeline"
-        CI_TF[terraform apply]
-        CI_STATE[Remote State Lock]
-    end
-    
-    DEV_TF --> DEV_STATE
-    DEV_STATE --> S3
-    
-    CI_TF --> CI_STATE
-    CI_STATE --> S3
-    CI_STATE --> DYNAMO
-    
-    S3 --> KMS
-    
-    style S3 fill:#FF9900,stroke:#fff,stroke-width:2px,color:#fff
-    style DYNAMO fill:#3F48CC,stroke:#fff,stroke-width:2px,color:#fff
-    style KMS fill:#FF9900,stroke:#fff,stroke-width:2px,color:#fff
+    style PUSH fill:#2496ED,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ---
 
-## 🔒 Security
+## 🔍 Service Mesh Observability
 
-### Security Architecture
+### Kiali Features and Configuration
 
 ```mermaid
 graph TB
-    subgraph "Network Security"
-        VPC[VPC with Private Subnets]
-        SG[Security Groups]
-        NACL[Network ACLs]
-        WAF[Web Application Firewall]
+    subgraph "Kiali Dashboard Features"
+        GRAPH[Service Graph Visualization]
+        TRAFFIC[Traffic Flow Analysis]
+        HEALTH[Service Health Monitoring]
+        CONFIG[Configuration Validation]
+        TRACES[Distributed Tracing]
+        METRICS[Performance Metrics]
     end
     
-    subgraph "Identity & Access"
-        IAM[IAM Roles & Policies]
-        IRSA[IAM Roles for Service Accounts]
-        RBAC[Kubernetes RBAC]
-        OIDC[OIDC Provider]
+    subgraph "Data Sources"
+        PROMETHEUS[Prometheus Metrics]
+        ZIPKIN_SRC[Zipkin Traces]
+        ISTIO_CONFIG[Istio Configuration]
+        K8S_API[Kubernetes API]
     end
     
-    subgraph "Data Protection"
-        KMS[KMS Encryption]
-        SECRETS[AWS Secrets Manager]
-        TLS[TLS in Transit]
-        BACKUP[Encrypted Backups]
+    subgraph "Kiali Capabilities"
+        TOPOLOGY[Real-time Topology]
+        SECURITY[mTLS Status]
+        POLICIES[Traffic Policies]
+        WORKLOADS[Workload Analysis]
+        NAMESPACES[Namespace Overview]
     end
     
-    subgraph "Monitoring & Compliance"
-        GUARD[GuardDuty]
-        CONFIG[AWS Config]
-        TRAIL[CloudTrail]
-        INSPECTOR[Inspector]
-    end
+    PROMETHEUS --> GRAPH
+    PROMETHEUS --> METRICS
+    ZIPKIN_SRC --> TRACES
+    ISTIO_CONFIG --> CONFIG
+    K8S_API --> HEALTH
     
-    VPC --> SG
-    SG --> NACL
-    NACL --> WAF
+    GRAPH --> TOPOLOGY
+    TRAFFIC --> SECURITY
+    HEALTH --> POLICIES
+    CONFIG --> WORKLOADS
+    TRACES --> NAMESPACES
     
-    IAM --> IRSA
-    IRSA --> RBAC
-    RBAC --> OIDC
-    
-    KMS --> SECRETS
-    SECRETS --> TLS
-    TLS --> BACKUP
-    
-    GUARD --> CONFIG
-    CONFIG --> TRAIL
-    TRAIL --> INSPECTOR
-    
-    style VPC fill:#FF6B6B,stroke:#fff,stroke-width:2px,color:#fff
-    style IAM fill:#FF9900,stroke:#fff,stroke-width:2px,color:#fff
-    style KMS fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
-    style GUARD fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
+    style GRAPH fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
+    style TOPOLOGY fill:#466BB0,stroke:#fff,stroke-width:2px,color:#fff
+    style PROMETHEUS fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
-### Security Checklist
+### Accessing Kiali
 
-- ✅ **Network Isolation**: VPC with private subnets
-- ✅ **Encryption at Rest**: KMS encryption for all data stores
-- ✅ **Encryption in Transit**: TLS 1.2+ for all communications
-- ✅ **IAM Least Privilege**: Minimal required permissions
-- ✅ **Secret Management**: AWS Secrets Manager integration
-- ✅ **Security Scanning**: Automated vulnerability scans
-- ✅ **Compliance**: SOC2, PCI DSS ready configurations
-- ✅ **Audit Logging**: CloudTrail for all API calls
+```bash
+# Port forward to access Kiali dashboard
+kubectl port-forward -n istio-system svc/kiali 20001:20001
+
+# Access via browser
+open http://localhost:20001
+
+# Or use kubectl proxy
+kubectl proxy &
+open http://localhost:8001/api/v1/namespaces/istio-system/services/kiali:20001/proxy/
+```
+
+### Kiali Configuration Options
+
+```yaml
+# kiali-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kiali
+  namespace: istio-system
+data:
+  config.yaml: |
+    auth:
+      strategy: "anonymous"  # For dev, use "token" or "openid" for prod
+    deployment:
+      image_name: "quay.io/kiali/kiali"
+      image_version: "latest"
+    external_services:
+      prometheus:
+        url: "http://prometheus:9090"
+      grafana:
+        enabled: true
+        in_cluster_url: "http://grafana:3000"
+      zipkin:
+        enabled: true
+        in_cluster_url: "http://zipkin:9411"
+    server:
+      web_root: "/kiali"
+```
 
 ---
 
+## 📊 Monitoring
+
+### Monitoring Architecture with Kiali Integration
+
+```mermaid
+graph TB
+    subgraph "Service Mesh Observability"
+        KIALI[Kiali - Service Graph]
+        ISTIO_PROXY[Istio Proxy Metrics]
+        ENVOY_STATS[Envoy Statistics]
+    end
+    
+    subgraph "Metrics Collection"
+        PROMETHEUS[Prometheus]
+        NODE_EXPORTER[Node Exporter]
+        KUBE_METRICS[Kube State Metrics]
+    end
+    
+    subgraph "Visualization"
+        GRAFANA[Grafana]
+        KIALI_DASH[Kiali Dashboards]
+        CUSTOM_DASH[Custom Dashboards]
+    end
+    
+    subgraph "Logging"
+        ELASTICSEARCH[Elasticsearch]
+        LOGSTASH[Logstash]
+        KIBANA[Kibana]
+        FLUENT_BIT[Fluent Bit]
+    end
+    
+    subgraph "Tracing"
+        ZIPKIN[Zipkin]
+    end
+    
+    ISTIO_PROXY --> KIALI
+    ENVOY_STATS --> PROMETHEUS
+    ISTIO_PROXY --> PROMETHEUS
+    
+    NODE_EXPORTER --> PROMETHEUS
+    KUBE_METRICS --> PROMETHEUS
+    
+    PROMETHEUS --> GRAFANA
+    PROMETHEUS --> KIALI
+    
+    KIALI --> KIALI_DASH
+    GRAFANA --> CUSTOM_DASH
+    
+    FLUENT_BIT --> LOGSTASH
+    LOGSTASH --> ELASTICSEARCH
+    ELASTICSEARCH --> KIBANA
+    
+    ISTIO_PROXY --> ZIPKIN
+    
+    style KIALI fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
+    style PROMETHEUS fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
+    style GRAFANA fill:#F46800,stroke:#fff,stroke-width:2px,color:#fff
+    style ZIPKIN fill:#FF6B35,stroke:#fff,stroke-width:2px,color:#fff
+```
 
 ### Key Metrics Monitored
 
 | Category | Metrics | Tools |
 |----------|---------|--------|
+| **Service Mesh** | Request rate, Success rate, Duration, Traffic flow | Kiali + Istio |
 | **Infrastructure** | CPU, Memory, Disk, Network | Prometheus + Grafana |
 | **Kubernetes** | Pod health, Resource usage | Kubernetes Dashboard |
-| **Applications** | Response time, Error rate, Throughput | Custom metrics |
+| **Applications** | Response time, Error rate, Throughput | Custom metrics + Kiali |
 | **Databases** | Connections, Query performance | RDS/Atlas monitoring |
-| **Service Mesh** | Traffic flow, Security policies | Kiali |
+| **Service Communication** | mTLS status, Circuit breakers | Kiali + Istio |
+
+### Kiali-Specific Monitoring
+
+```bash
+# View service graph
+echo "Access Kiali service graph for real-time topology"
+
+# Monitor traffic policies
+kubectl get virtualservices -A
+kubectl get destinationrules -A
+
+# Check mTLS status
+kubectl get peerauthentications -A
+kubectl get authorizationpolicies -A
+
+# Validate configuration
+kubectl get gateway -A
+kubectl get serviceentries -A
+```
 
 ---
-
 
 ## 🛠️ Advanced Usage
 
@@ -816,10 +990,6 @@ terraform validate
 # Format code
 terraform fmt -recursive
 
-# Security scanning
-tfsec .
-checkov -d .
-
 # Plan without applying
 terraform plan -detailed-exitcode
 
@@ -827,15 +997,24 @@ terraform plan -detailed-exitcode
 go test ./tests/...
 ```
 
-### Disaster Recovery
+### Kiali Configuration Testing
 
 ```bash
-# Backup Terraform state
-aws s3 cp s3://terraform-state/prod/terraform.tfstate \
-         s3://terraform-state-backup/prod/terraform.tfstate.$(date +%Y%m%d)
+# Test Kiali API
+kubectl exec -n istio-system deployment/kiali -- \
+    curl -s http://localhost:20001/api/status
 
-# Cross-region replication
-aws s3 sync s3://terraform-state s3://terraform-state-dr --region us-east-1
+# Validate service mesh configuration
+kubectl exec -n istio-system deployment/kiali -- \
+    curl -s "http://localhost:20001/api/namespaces/default/services"
+
+# Test graph API
+kubectl exec -n istio-system deployment/kiali -- \
+    curl -s "http://localhost:20001/api/namespaces/graph?namespaces=default"
+
+# Test Zipkin integration
+kubectl get pods -n istio-system | grep zipkin
+kubectl logs -n istio-system deployment/zipkin
 ```
 
 ---
@@ -859,11 +1038,11 @@ aws s3 sync s3://terraform-state s3://terraform-state-dr --region us-east-1
    - Follow Terraform best practices
    - Update documentation
    - Add tests
+   - Configure Kiali integration
 
 4. **Test Changes**
    ```bash
    make validate
-   make security
    make test
    ```
 
@@ -876,8 +1055,8 @@ aws s3 sync s3://terraform-state s3://terraform-state-dr --region us-east-1
 
 - **📝 Documentation**: Every module must have a README
 - **🧪 Testing**: Include unit and integration tests
-- **🔒 Security**: Follow security best practices
 - **🏷️ Tagging**: Consistent resource tagging
+- **🔍 Observability**: Kiali and monitoring integration
 
 ---
 
@@ -887,15 +1066,17 @@ aws s3 sync s3://terraform-state s3://terraform-state-dr --region us-east-1
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Istio Documentation](https://istio.io/latest/docs/)
+- [Kiali Documentation](https://kiali.io/docs/)
 
-### Security Resources
-- [tfsec Rules](https://aquasecurity.github.io/tfsec/latest/checks/aws/)
-- [AWS Security Best Practices](https://aws.amazon.com/architecture/security-identity-compliance/)
-- [CIS Benchmarks](https://www.cisecurity.org/cis-benchmarks/)
+### Service Mesh Resources
+- [Istio Best Practices](https://istio.io/latest/docs/ops/best-practices/)
+- [Kiali Configuration](https://kiali.io/docs/configuration/)
+- [Service Mesh Patterns](https://www.oreilly.com/library/view/service-mesh-patterns/9781492086444/)
 
-### Cost Optimization
-- [AWS Cost Optimization](https://aws.amazon.com/aws-cost-management/)
-- [Kubernetes Resource Management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+### Container Registry
+- [Docker Hub Documentation](https://docs.docker.com/docker-hub/)
+- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
 
 ---
 
@@ -927,7 +1108,6 @@ Made with ❤️ by the NexusCommerce Platform Team
 ![Infrastructure as Code](https://img.shields.io/badge/Infrastructure-as%20Code-blue?style=for-the-badge)
 ![Cloud Native](https://img.shields.io/badge/Cloud-Native-green?style=for-the-badge)
 ![DevOps](https://img.shields.io/badge/DevOps-Ready-orange?style=for-the-badge)
+![Service Mesh](https://img.shields.io/badge/Service%20Mesh-Enabled-purple?style=for-the-badge)
 
 </div>
-
-
