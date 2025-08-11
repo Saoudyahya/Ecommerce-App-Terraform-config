@@ -740,7 +740,7 @@ graph TB
         PLAN[Terraform Plan]
         APPLY[Terraform Apply]
         TEST[Infrastructure Tests]
-        KIALI_DEPLOY[Deploy Kiali Configuration]
+
     end
     
     subgraph "Docker Hub Integration"
@@ -769,11 +769,8 @@ graph TB
     MANUAL --> SLACK
     SLACK --> APPLY
     
-    APPLY --> KIALI_DEPLOY
-    KIALI_DEPLOY --> TEST
     
     style TRIGGER fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
-    style KIALI_DEPLOY fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
     style MANUAL fill:#9C27B0,stroke:#fff,stroke-width:2px,color:#fff
     style APPLY fill:#2196F3,stroke:#fff,stroke-width:2px,color:#fff
     style PUSH fill:#2496ED,stroke:#fff,stroke-width:2px,color:#fff
@@ -783,50 +780,7 @@ graph TB
 
 ## 🔍 Service Mesh Observability
 
-### Kiali Features and Configuration
 
-```mermaid
-graph TB
-    subgraph "Kiali Dashboard Features"
-        GRAPH[Service Graph Visualization]
-        TRAFFIC[Traffic Flow Analysis]
-        HEALTH[Service Health Monitoring]
-        CONFIG[Configuration Validation]
-        TRACES[Distributed Tracing]
-        METRICS[Performance Metrics]
-    end
-    
-    subgraph "Data Sources"
-        PROMETHEUS[Prometheus Metrics]
-        ZIPKIN_SRC[Zipkin Traces]
-        ISTIO_CONFIG[Istio Configuration]
-        K8S_API[Kubernetes API]
-    end
-    
-    subgraph "Kiali Capabilities"
-        TOPOLOGY[Real-time Topology]
-        SECURITY[mTLS Status]
-        POLICIES[Traffic Policies]
-        WORKLOADS[Workload Analysis]
-        NAMESPACES[Namespace Overview]
-    end
-    
-    PROMETHEUS --> GRAPH
-    PROMETHEUS --> METRICS
-    ZIPKIN_SRC --> TRACES
-    ISTIO_CONFIG --> CONFIG
-    K8S_API --> HEALTH
-    
-    GRAPH --> TOPOLOGY
-    TRAFFIC --> SECURITY
-    HEALTH --> POLICIES
-    CONFIG --> WORKLOADS
-    TRACES --> NAMESPACES
-    
-    style GRAPH fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
-    style TOPOLOGY fill:#466BB0,stroke:#fff,stroke-width:2px,color:#fff
-    style PROMETHEUS fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
-```
 
 ### Accessing Kiali
 
@@ -875,63 +829,6 @@ data:
 
 ## 📊 Monitoring
 
-### Monitoring Architecture with Kiali Integration
-
-```mermaid
-graph TB
-    subgraph "Service Mesh Observability"
-        KIALI[Kiali - Service Graph]
-        ISTIO_PROXY[Istio Proxy Metrics]
-        ENVOY_STATS[Envoy Statistics]
-    end
-    
-    subgraph "Metrics Collection"
-        PROMETHEUS[Prometheus]
-        NODE_EXPORTER[Node Exporter]
-        KUBE_METRICS[Kube State Metrics]
-    end
-    
-    subgraph "Visualization"
-        GRAFANA[Grafana]
-        KIALI_DASH[Kiali Dashboards]
-        CUSTOM_DASH[Custom Dashboards]
-    end
-    
-    subgraph "Logging"
-        ELASTICSEARCH[Elasticsearch]
-        LOGSTASH[Logstash]
-        KIBANA[Kibana]
-        FLUENT_BIT[Fluent Bit]
-    end
-    
-    subgraph "Tracing"
-        ZIPKIN[Zipkin]
-    end
-    
-    ISTIO_PROXY --> KIALI
-    ENVOY_STATS --> PROMETHEUS
-    ISTIO_PROXY --> PROMETHEUS
-    
-    NODE_EXPORTER --> PROMETHEUS
-    KUBE_METRICS --> PROMETHEUS
-    
-    PROMETHEUS --> GRAFANA
-    PROMETHEUS --> KIALI
-    
-    KIALI --> KIALI_DASH
-    GRAFANA --> CUSTOM_DASH
-    
-    FLUENT_BIT --> LOGSTASH
-    LOGSTASH --> ELASTICSEARCH
-    ELASTICSEARCH --> KIBANA
-    
-    ISTIO_PROXY --> ZIPKIN
-    
-    style KIALI fill:#0F1419,stroke:#fff,stroke-width:2px,color:#fff
-    style PROMETHEUS fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
-    style GRAFANA fill:#F46800,stroke:#fff,stroke-width:2px,color:#fff
-    style ZIPKIN fill:#FF6B35,stroke:#fff,stroke-width:2px,color:#fff
-```
 
 ### Key Metrics Monitored
 
@@ -1111,3 +1008,4 @@ Made with ❤️ by the NexusCommerce Platform Team
 ![Service Mesh](https://img.shields.io/badge/Service%20Mesh-Enabled-purple?style=for-the-badge)
 
 </div>
+
