@@ -1,4 +1,5 @@
 # environments/dev/terraform.tfvars
+# Updated for AWS Free Tier compatibility
 
 # Basic Configuration
 aws_region      = "us-east-1"
@@ -11,27 +12,25 @@ kubernetes_version = "1.28"
 vpc_cidr = "10.0.0.0/16"
 private_subnet_cidrs = [
   "10.0.1.0/24",
-  "10.0.2.0/24",
-  "10.0.3.0/24"
+  "10.0.2.0/24"
 ]
 public_subnet_cidrs = [
   "10.0.101.0/24",
-  "10.0.102.0/24",
-  "10.0.103.0/24"
+  "10.0.102.0/24"
 ]
 
 # Networking settings for dev (cost-optimized)
 enable_nat_gateway = true
 number_of_azs     = 2  # Only 2 AZs for dev to reduce costs
 
-# Node Group Configuration - Development
+# Node Group Configuration - FREE TIER COMPATIBLE
 node_groups = {
   system = {
-    instance_types      = ["t3.medium"]  # Smaller instances for dev
+    instance_types      = ["t2.micro"]  # FREE TIER ELIGIBLE
     min_size           = 1
-    max_size           = 3
+    max_size           = 2
     desired_size       = 1
-    disk_size          = 30
+    disk_size          = 20  # Reduced disk size
     disk_type          = "gp3"
     disk_iops          = 3000
     disk_throughput    = 125
@@ -51,16 +50,16 @@ node_groups = {
   }
 
   applications = {
-    instance_types      = ["t3.large"]  # Smaller for dev workloads
+    instance_types      = ["t2.micro"]  # FREE TIER ELIGIBLE
     min_size           = 1
-    max_size           = 5
-    desired_size       = 2
-    disk_size          = 50
+    max_size           = 3
+    desired_size       = 1  # Start with 1 for free tier
+    disk_size          = 20  # Reduced disk size
     disk_type          = "gp3"
     disk_iops          = 3000
     disk_throughput    = 125
     ami_type           = "AL2_x86_64"
-    capacity_type      = "SPOT"  # Use spot instances for cost savings in dev
+    capacity_type      = "ON_DEMAND"  # Use on-demand for free tier
     user_data_template_path = null
     labels = {
       "node-type" = "applications"
@@ -68,23 +67,8 @@ node_groups = {
     taints = null
   }
 
-  data = {
-    instance_types      = ["r5.large"]  # Smaller memory-optimized for dev
-    min_size           = 0  # Can scale to zero in dev
-    max_size           = 3
-    desired_size       = 1
-    disk_size          = 100
-    disk_type          = "gp3"
-    disk_iops          = 3000
-    disk_throughput    = 125
-    ami_type           = "AL2_x86_64"
-    capacity_type      = "SPOT"  # Use spot for data nodes in dev
-    user_data_template_path = null
-    labels = {
-      "node-type" = "data"
-    }
-    taints = null
-  }
+  # Remove data node group for now to stay within free tier limits
+  # You can add it back later if needed
 }
 
 # EKS Admin Users - Add your IAM users here
@@ -120,23 +104,16 @@ auto_sync_self_heal  = true
 use_custom_project   = false
 
 # Optional Features - Development
-enable_monitoring        = false  # Disabled to save costs
+enable_monitoring        = false  # Disabled to save costs and resources
 enable_external_dns     = false
 domain_name             = ""
 
-# Security Groups
+# Security Groups - Simplified for free tier
 additional_security_groups = [
   {
-    name        = "dev-additional"
-    description = "Additional security group for development"
+    name        = "dev-basic"
+    description = "Basic security group for development"
     ingress_rules = [
-      {
-        description = "HTTP from anywhere (dev only)"
-        from_port   = 80
-        to_port     = 80
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-      },
       {
         description = "HTTPS from anywhere"
         from_port   = 443
