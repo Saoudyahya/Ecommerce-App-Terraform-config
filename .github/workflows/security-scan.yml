@@ -1,0 +1,145 @@
+
+# .github/workflows/security-scan.yml
+name: "🔒 Security Scan"
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'terraform/**'
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:
+
+env:
+  TF_VERSION: "1.5.7"
+
+jobs:
+  security-scan:
+    name: "🔒 Security Analysis"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 🎯 Terraform Format Check
+        run: |
+          terraform fmt -check -recursive terraform/
+          echo "✅ Terraform format check passed"
+
+      - name: 🚀 Initialize All Environments
+        run: |
+          for env in dev stage prod; do
+            echo "🔧 Initializing $env environment..."
+            cd terraform/environments/$env
+            terraform init -backend=false
+            cd ../../..
+          done
+
+      - name: ✅ Validate All Configurations
+        run: |
+          for env in dev stage prod; do
+            echo "✅ Validating $env environment..."
+            cd terraform/environments/$env
+            terraform validate
+            cd ../../..
+          done
+
+      - name: 🔍 Run tfsec Security Scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform/
+          soft_fail: true
+          format: sarif
+          output: tfsec-results.sarif
+
+      - name: 📤 Upload tfsec Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: tfsec-results.sarif
+          category: tfsec
+
+      - name: 🛡️ Run Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          framework: terraform
+          soft_fail: true
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: 📤 Upload Checkov Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+          category: checkov
+
+      - name: 🔍 Run Terrascan
+        uses: tenable/terrascan-action@main
+        with:
+          iac_type: 'terraform'
+          iac_dir: 'terraform/'
+          policy_type: 'aws'
+          only_warn: true
+          sarif_upload: true
+
+      - name: 🎯 Custom Security Checks
+        run: |
+          echo "🔍 Running custom security checks..."
+          
+          # Check for hardcoded secrets
+          echo "Checking for potential secrets..."
+          if grep -r -i "password\|secret\|key" terraform/ --include="*.tf" --include="*.tfvars" | grep -v "variable\|description\|type"; then
+            echo "⚠️ Potential hardcoded secrets found"
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+          
+          # Check for overly permissive security groups
+          echo "Checking for overly permissive security groups..."
+          if grep -r "0.0.0.0/0" terraform/ --include="*.tf" | grep -v "egress"; then
+            echo "⚠️ Overly permissive ingress rules found"
+          else
+            echo "✅ No overly permissive ingress rules detected"
+          fi
+          
+          # Check for public subnets
+          echo "Checking subnet configurations..."
+          if grep -r "map_public_ip_on_launch.*true" terraform/ --include="*.tf"; then
+            echo "ℹ️ Public subnets detected (expected for ALB)"
+          fi
+
+      - name: 📊 Generate Security Report
+        run: |
+          echo "# 🔒 Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **tfsec**: Completed (check Security tab for details)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Checkov**: Completed (check Security tab for details)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Terrascan**: Completed (check Security tab for details)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Custom Checks**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Environment Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 **Development**: Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 **Staging**: Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 **Production**: Scanned" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📝 **Note**: Detailed findings are available in the Security tab above." >> $GITHUB_STEP_SUMMARY
+

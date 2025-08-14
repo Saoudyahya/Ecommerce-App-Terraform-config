@@ -1,0 +1,182 @@
+# .github/workflows/terraform-plan.yml
+name: "🔍 Terraform Plan"
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform-*.yml'
+
+env:
+  TF_VERSION: "1.5.7"
+  AWS_REGION: "us-west-2"
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan:
+    name: "Plan ${{ matrix.environment }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, stage, prod]
+
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+      security-events: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          role-session-name: terraform-plan-${{ matrix.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🏗️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: 📋 Cache Terraform
+        uses: actions/cache@v3
+        with:
+          path: |
+            terraform/environments/${{ matrix.environment }}/.terraform
+          key: terraform-${{ matrix.environment }}-${{ hashFiles('terraform/environments/${{ matrix.environment }}/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-${{ matrix.environment }}-
+
+      - name: 🎯 Terraform Format Check
+        run: |
+          terraform fmt -check -recursive terraform/
+          echo "✅ Terraform format check passed"
+
+      - name: 🚀 Terraform Initialize
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform init -input=false
+          echo "✅ Terraform initialized for ${{ matrix.environment }}"
+
+      - name: ✅ Terraform Validate
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform validate
+          echo "✅ Terraform configuration is valid"
+
+      - name: 📊 Terraform Plan
+        id: plan
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan \
+            -var-file="terraform.tfvars" \
+            -out="terraform.plan" \
+            -detailed-exitcode \
+            -no-color 2>&1 | tee plan_output.txt
+          
+          # Capture exit code
+          PLAN_EXIT_CODE=${PIPESTATUS[0]}
+          echo "plan_exit_code=$PLAN_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # Format plan output for comment
+          echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat plan_output.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 💬 Update Pull Request Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const environment = '${{ matrix.environment }}';
+            const planExitCode = '${{ steps.plan.outputs.plan_exit_code }}';
+            const planOutput = process.env.PLAN_OUTPUT;
+            
+            let status = '';
+            let emoji = '';
+            
+            if (planExitCode === '0') {
+              status = 'No changes';
+              emoji = '✅';
+            } else if (planExitCode === '2') {
+              status = 'Changes detected';
+              emoji = '📝';
+            } else {
+              status = 'Plan failed';
+              emoji = '❌';
+            }
+            
+            const comment = `## ${emoji} Terraform Plan - ${environment}
+            
+            **Status**: ${status}
+            **Environment**: \`${environment}\`
+            **Workflow**: \`${{ github.workflow }}\`
+            **Commit**: \`${{ github.sha }}\`
+            
+            <details>
+            <summary>📋 Plan Output</summary>
+            
+            \`\`\`hcl
+            ${planOutput}
+            \`\`\`
+            
+            </details>
+            
+            **Plan Exit Code**: \`${planExitCode}\`
+            - \`0\`: No changes
+            - \`2\`: Changes detected
+            - Other: Error occurred
+            `;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.body.includes(`Terraform Plan - ${environment}`)
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                comment_id: existingComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+      - name: 📤 Upload Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan-${{ matrix.environment }}
+          path: terraform/environments/${{ matrix.environment }}/terraform.plan
+          retention-days: 5
+
+      - name: 📈 Plan Summary
+        run: |
+          echo "## Terraform Plan Summary - ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Exit Code**: ${{ steps.plan.outputs.plan_exit_code }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.plan.outputs.plan_exit_code }}" = "0" ]; then
+            echo "✅ No infrastructure changes required" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.plan.outputs.plan_exit_code }}" = "2" ]; then
+            echo "📝 Infrastructure changes detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Plan execution failed" >> $GITHUB_STEP_SUMMARY
+          fi

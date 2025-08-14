@@ -1,0 +1,243 @@
+
+# .github/workflows/terraform-apply.yml
+name: "🚀 Terraform Apply"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      destroy:
+        description: 'Destroy infrastructure instead of apply'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TF_VERSION: "1.5.7"
+  AWS_REGION: "us-west-2"
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  determine-environments:
+    name: "🎯 Determine Deployment Strategy"
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.set-environments.outputs.environments }}
+      action: ${{ steps.set-action.outputs.action }}
+    steps:
+      - name: 🎲 Set Environments
+        id: set-environments
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environments=[\"${{ github.event.inputs.environment }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Auto-deploy only dev on main branch pushes
+            echo "environments=[\"dev\"]" >> $GITHUB_OUTPUT
+          fi
+
+      - name: ⚡ Set Action
+        id: set-action
+        run: |
+          if [ "${{ github.event.inputs.destroy }}" = "true" ]; then
+            echo "action=destroy" >> $GITHUB_OUTPUT
+          else
+            echo "action=apply" >> $GITHUB_OUTPUT
+          fi
+
+  apply:
+    name: "${{ needs.determine-environments.outputs.action == 'destroy' && '💥 Destroy' || '🚀 Deploy' }} ${{ matrix.environment }}"
+    runs-on: ubuntu-latest
+    needs: determine-environments
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.determine-environments.outputs.environments) }}
+
+    environment:
+      name: ${{ matrix.environment }}
+      url: ${{ steps.outputs.outputs.cluster_endpoint }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          role-session-name: terraform-${{ needs.determine-environments.outputs.action }}-${{ matrix.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🏗️ Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: 📋 Cache Terraform
+        uses: actions/cache@v3
+        with:
+          path: |
+            terraform/environments/${{ matrix.environment }}/.terraform
+          key: terraform-${{ matrix.environment }}-${{ hashFiles('terraform/environments/${{ matrix.environment }}/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-${{ matrix.environment }}-
+
+      - name: 🚀 Terraform Initialize
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform init -input=false
+          echo "✅ Terraform initialized for ${{ matrix.environment }}"
+
+      - name: 📊 Terraform Plan
+        if: needs.determine-environments.outputs.action == 'apply'
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan \
+            -var-file="terraform.tfvars" \
+            -out="terraform.plan" \
+            -detailed-exitcode
+          
+          echo "✅ Terraform plan completed"
+
+      - name: ⚠️ Production Confirmation
+        if: matrix.environment == 'prod' && needs.determine-environments.outputs.action == 'apply'
+        run: |
+          echo "🚨 PRODUCTION DEPLOYMENT"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "Action: ${{ needs.determine-environments.outputs.action }}"
+          echo "This will modify production infrastructure!"
+
+      - name: 💥 Terraform Destroy
+        if: needs.determine-environments.outputs.action == 'destroy'
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan -destroy \
+            -var-file="terraform.tfvars" \
+            -out="terraform.plan"
+          
+          terraform apply terraform.plan
+          echo "💥 Infrastructure destroyed for ${{ matrix.environment }}"
+
+      - name: 🚀 Terraform Apply
+        if: needs.determine-environments.outputs.action == 'apply'
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform apply terraform.plan
+          echo "✅ Terraform apply completed for ${{ matrix.environment }}"
+
+      - name: 📤 Capture Outputs
+        if: needs.determine-environments.outputs.action == 'apply'
+        id: outputs
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          # Capture key outputs
+          CLUSTER_ID=$(terraform output -raw cluster_id 2>/dev/null || echo "")
+          CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint 2>/dev/null || echo "")
+          VPC_ID=$(terraform output -raw vpc_id 2>/dev/null || echo "")
+          
+          echo "cluster_id=$CLUSTER_ID" >> $GITHUB_OUTPUT
+          echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+          
+          # Save all outputs
+          terraform output -json > terraform-outputs.json
+
+      - name: ⚙️ Configure kubectl
+        if: needs.determine-environments.outputs.action == 'apply' && steps.outputs.outputs.cluster_id != ''
+        run: |
+          aws eks --region ${{ env.AWS_REGION }} update-kubeconfig \
+            --name ${{ steps.outputs.outputs.cluster_id }}
+          
+          echo "✅ kubectl configured for cluster: ${{ steps.outputs.outputs.cluster_id }}"
+
+      - name: 🔍 Verify ArgoCD Deployment
+        if: needs.determine-environments.outputs.action == 'apply' && steps.outputs.outputs.cluster_id != ''
+        timeout-minutes: 10
+        run: |
+          echo "🔍 Waiting for ArgoCD to be ready..."
+          
+          # Wait for ArgoCD namespace
+          kubectl wait --for=condition=Ready namespace argocd --timeout=300s || echo "ArgoCD namespace not ready yet"
+          
+          # Wait for ArgoCD server
+          kubectl wait --for=condition=Ready pod \
+            -l app.kubernetes.io/name=argocd-server \
+            -n argocd --timeout=300s || echo "ArgoCD server not ready yet"
+          
+          # Check ArgoCD applications
+          kubectl get applications -n argocd || echo "No ArgoCD applications found yet"
+          
+          echo "✅ ArgoCD verification completed"
+
+      - name: 🏥 Health Check
+        if: needs.determine-environments.outputs.action == 'apply' && steps.outputs.outputs.cluster_id != ''
+        run: |
+          echo "🏥 Performing health checks..."
+          
+          # Cluster health
+          kubectl get nodes
+          kubectl get pods -A --field-selector=status.phase!=Running || true
+          
+          # ArgoCD health
+          kubectl get pods -n argocd || echo "ArgoCD not deployed"
+          
+          # Monitoring health (if enabled)
+          kubectl get pods -n monitoring || echo "Monitoring not deployed"
+          
+          echo "✅ Health check completed"
+
+      - name: 📤 Upload Terraform Outputs
+        if: needs.determine-environments.outputs.action == 'apply'
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs-${{ matrix.environment }}
+          path: terraform/environments/${{ matrix.environment }}/terraform-outputs.json
+          retention-days: 30
+
+      - name: 📊 Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Summary - ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action**: ${{ needs.determine-environments.outputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.determine-environments.outputs.action }}" = "apply" ]; then
+            echo "**Cluster ID**: ${{ steps.outputs.outputs.cluster_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "**VPC ID**: ${{ steps.outputs.outputs.vpc_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔗 Quick Access" >> $GITHUB_STEP_SUMMARY
+            echo "- Configure kubectl: \`aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ steps.outputs.outputs.cluster_id }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ArgoCD: \`kubectl port-forward svc/argocd-server -n argocd 8080:443\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Get ArgoCD password: \`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 💬 Notify Slack
+        if: always() && (matrix.environment == 'prod' || failure())
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#infrastructure'
+          text: |
+            ${{ needs.determine-environments.outputs.action == 'destroy' && '💥 Infrastructure Destroyed' || '🚀 Infrastructure Deployed' }}
+            Environment: ${{ matrix.environment }}
+            Status: ${{ job.status }}
+            Commit: ${{ github.sha }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
