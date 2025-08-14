@@ -1,5 +1,5 @@
 # modules/eks-cluster/outputs.tf
-# Updated outputs for the simplified EKS module
+# Updated outputs for the corrected EKS module
 
 output "cluster_id" {
   description = "EKS cluster ID"
@@ -42,20 +42,20 @@ output "oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
-# Updated to use our manually created node groups
+# Updated to use our manually created node groups (fixed resource reference)
 output "eks_managed_node_groups" {
   description = "Map of attribute maps for all EKS managed node groups created"
   value = {
     for ng_name, ng in aws_eks_node_group.node_groups : ng_name => {
-      arn           = ng.arn
-      cluster_name  = ng.cluster_name
+      arn             = ng.arn
+      cluster_name    = ng.cluster_name
       node_group_name = ng.node_group_name
-      status        = ng.status
-      capacity_type = ng.capacity_type
-      instance_types = ng.instance_types
-      scaling_config = ng.scaling_config
-      labels        = ng.labels
-      taints        = ng.taint
+      status          = ng.status
+      capacity_type   = ng.capacity_type
+      instance_types  = ng.instance_types
+      scaling_config  = ng.scaling_config
+      labels          = ng.labels
+      taints          = ng.taint
     }
   }
   sensitive = true
@@ -97,14 +97,5 @@ output "cluster_addons" {
     coredns    = aws_eks_addon.coredns
     kube_proxy = aws_eks_addon.kube_proxy
     ebs_csi    = aws_eks_addon.ebs_csi
-  }
-}
-
-# AWS Auth ConfigMap
-output "aws_auth_configmap" {
-  description = "AWS Auth ConfigMap details"
-  value = {
-    name      = kubernetes_config_map_v1.aws_auth.metadata[0].name
-    namespace = kubernetes_config_map_v1.aws_auth.metadata[0].namespace
   }
 }

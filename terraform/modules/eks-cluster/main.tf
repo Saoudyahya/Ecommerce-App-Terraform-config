@@ -1,5 +1,5 @@
 # modules/eks-cluster/main.tf
-# Simplified version for free tier without duplicate node groups
+# Fixed version with correct resource references
 
 # Data sources
 data "aws_availability_zones" "available" {
@@ -33,11 +33,15 @@ module "eks" {
     }
   }
 
-  # Don't create any managed node groups through the module
+  # CRITICAL: Don't create any managed node groups through the module
   eks_managed_node_groups = {}
 
-  # Disable automatic aws-auth management to avoid conflicts
-  manage_aws_auth_configmap = false
+  # ConfigMap management - let Terraform handle it properly
+  manage_aws_auth_configmap = true
+  create_aws_auth_configmap = true
+
+  aws_auth_roles = var.aws_auth_roles
+  aws_auth_users = var.eks_admin_users
 
   tags = merge(var.common_tags, var.cluster_tags)
 }
@@ -86,7 +90,7 @@ resource "aws_iam_role_policy_attachment" "node_group_registry_policy" {
   role       = aws_iam_role.node_group_role[each.key].name
 }
 
-# Create managed node groups manually (simplified version)
+# Create managed node groups manually to avoid the for_each issue
 resource "aws_eks_node_group" "node_groups" {
   for_each = var.node_groups
 
@@ -122,15 +126,14 @@ resource "aws_eks_node_group" "node_groups" {
       each.value.labels != null ? each.value.labels : {}
   )
 
-  # Taints
+  # Taints - Fixed the taint configuration
   dynamic "taint" {
     for_each = each.value.taints != null ? each.value.taints : {}
-    iterator = taint_config
     content {
       key    = "CriticalAddonsOnly"
       value  = "true"
       effect = "NO_SCHEDULE"
-    }
+}
   }
 
   tags = merge(var.common_tags, {
@@ -146,37 +149,10 @@ resource "aws_eks_node_group" "node_groups" {
   ]
 }
 
-# Create aws-auth ConfigMap manually to include our node groups
-resource "kubernetes_config_map_v1" "aws_auth" {
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    mapRoles = yamlencode(concat(
-      # Add our node group roles
-      [
-        for ng_name, ng_role in aws_iam_role.node_group_role : {
-        rolearn  = ng_role.arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups = [
-          "system:bootstrappers",
-          "system:nodes"
-        ]
-      }
-      ],
-      # Add any additional IAM roles
-      var.aws_auth_roles
-    ))
-
-    mapUsers = yamlencode(var.eks_admin_users)
-  }
-
-  depends_on = [
-    module.eks,
-    aws_iam_role.node_group_role
-  ]
+# Wait for nodes to be ready before installing add-ons
+resource "time_sleep" "wait_for_nodes" {
+  depends_on = [aws_eks_node_group.node_groups]
+  create_duration = "180s"  # Wait 3 minutes for nodes to be ready
 }
 
 # EBS CSI Driver IRSA Role
@@ -197,14 +173,14 @@ module "ebs_csi_irsa_role" {
   tags = var.common_tags
 }
 
-# EKS Addons
+# EKS Addons with improved configuration and proper dependencies
 resource "aws_eks_addon" "vpc_cni" {
-  cluster_name      = module.eks.cluster_name
-  addon_name        = "vpc-cni"
-  addon_version     = var.addon_versions.vpc_cni
-  resolve_conflicts = "OVERWRITE"
+  cluster_name         = module.eks.cluster_name
+  addon_name           = "vpc-cni"
+  addon_version        = var.addon_versions.vpc_cni
+  resolve_conflicts    = "OVERWRITE"
 
-  depends_on = [aws_eks_node_group.node_groups]
+  depends_on = [time_sleep.wait_for_nodes]
 }
 
 resource "aws_eks_addon" "coredns" {
@@ -214,7 +190,7 @@ resource "aws_eks_addon" "coredns" {
   resolve_conflicts = "OVERWRITE"
 
   depends_on = [
-    aws_eks_node_group.node_groups,
+    time_sleep.wait_for_nodes,
     aws_eks_addon.vpc_cni
   ]
 }
@@ -225,7 +201,7 @@ resource "aws_eks_addon" "kube_proxy" {
   addon_version     = var.addon_versions.kube_proxy
   resolve_conflicts = "OVERWRITE"
 
-  depends_on = [aws_eks_node_group.node_groups]
+  depends_on = [time_sleep.wait_for_nodes]
 }
 
 resource "aws_eks_addon" "ebs_csi" {
@@ -236,7 +212,8 @@ resource "aws_eks_addon" "ebs_csi" {
   resolve_conflicts        = "OVERWRITE"
 
   depends_on = [
-    aws_eks_node_group.node_groups,
+    time_sleep.wait_for_nodes,
+    aws_eks_addon.vpc_cni,
     module.ebs_csi_irsa_role
   ]
 }
