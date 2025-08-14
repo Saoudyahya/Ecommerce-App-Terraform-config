@@ -1,4 +1,5 @@
 # environments/dev/main.tf
+# Fixed version with proper Kubernetes provider configuration
 
 # Configure AWS Provider
 provider "aws" {
@@ -102,7 +103,8 @@ module "eks_cluster" {
   depends_on = [module.networking]
 }
 
-# Configure Kubernetes and Helm providers
+# CRITICAL: Configure Kubernetes and Helm providers AFTER EKS cluster is created
+# This prevents the "Failed to construct REST client" error
 provider "kubernetes" {
   host                   = module.eks_cluster.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks_cluster.cluster_certificate_authority_data)
@@ -127,6 +129,17 @@ provider "helm" {
   }
 }
 
+# Add a data source to ensure cluster is ready before other modules
+data "aws_eks_cluster" "cluster" {
+  name = module.eks_cluster.cluster_id
+  depends_on = [module.eks_cluster]
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name = module.eks_cluster.cluster_id
+  depends_on = [module.eks_cluster]
+}
+
 # EKS Addons Module
 module "eks_addons" {
   source = "../../modules/addons"
@@ -147,10 +160,14 @@ module "eks_addons" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.eks_cluster]
+  depends_on = [
+    module.eks_cluster,
+    data.aws_eks_cluster.cluster,
+    data.aws_eks_cluster_auth.cluster
+  ]
 }
 
-# ArgoCD Module
+# ArgoCD Module - Deploy AFTER cluster and addons are ready
 module "argocd" {
   source = "../../modules/argocd"
 
@@ -190,5 +207,9 @@ module "argocd" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.eks_addons]
+  depends_on = [
+    module.eks_addons,
+    data.aws_eks_cluster.cluster,
+    data.aws_eks_cluster_auth.cluster
+  ]
 }

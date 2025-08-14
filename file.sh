@@ -1,110 +1,95 @@
-@echo off
-REM Script to create Terraform project structure with empty files
+#!/bin/bash
+# two-phase-deploy.sh - Deploy infrastructure in two phases to avoid Kubernetes provider issues
 
-echo Creating Terraform project structure...
+set -e
 
-REM Create root terraform directory
-mkdir terraform
+ENV=${1:-dev}
+cd "terraform/environments/$ENV"
 
-REM Navigate to terraform directory
-cd terraform
+echo "=== Two-Phase EKS Deployment for $ENV ==="
 
-REM Create main directories
-mkdir modules\eks-cluster
-mkdir modules\networking
-mkdir modules\argocd
-mkdir modules\monitoring
-mkdir modules\addons
-mkdir environments\dev
-mkdir environments\stage
-mkdir environments\prod
-mkdir shared
-mkdir scripts
+# Phase 1: Deploy infrastructure without ArgoCD bootstrap
+echo ""
+echo "🚀 PHASE 1: Deploying EKS Infrastructure"
+echo "=================================================="
 
-echo Created directory structure...
+# Temporarily disable ArgoCD bootstrap
+echo "Temporarily disabling ArgoCD bootstrap..."
 
-REM Create files for eks-cluster module
-echo. > modules\eks-cluster\main.tf
-echo. > modules\eks-cluster\variables.tf
-echo. > modules\eks-cluster\outputs.tf
-echo. > modules\eks-cluster\versions.tf
+# Create a temporary tfvars file with bootstrap disabled
+cat > terraform-phase1.tfvars << 'EOF'
+# Copy all variables from terraform.tfvars but disable bootstrap
+EOF
 
-REM Create files for networking module
-echo. > modules\networking\main.tf
-echo. > modules\networking\variables.tf
-echo. > modules\networking\outputs.tf
-echo. > modules\networking\versions.tf
+# Copy existing tfvars and modify bootstrap setting
+grep -v "bootstrap_argocd" terraform.tfvars > terraform-phase1.tfvars
+echo "bootstrap_argocd = false" >> terraform-phase1.tfvars
 
-REM Create files for argocd module
-echo. > modules\argocd\main.tf
-echo. > modules\argocd\variables.tf
-echo. > modules\argocd\outputs.tf
-echo. > modules\argocd\bootstrap.tf
+echo "Deploying EKS cluster and addons..."
+terraform apply -var-file='terraform-phase1.tfvars' -auto-approve
 
-REM Create files for monitoring module
-echo. > modules\monitoring\main.tf
-echo. > modules\monitoring\variables.tf
-echo. > modules\monitoring\outputs.tf
-echo. > modules\monitoring\versions.tf
+echo "✅ Phase 1 complete: EKS cluster and addons deployed"
 
-REM Create files for addons module
-echo. > modules\addons\main.tf
-echo. > modules\addons\variables.tf
-echo. > modules\addons\outputs.tf
-echo. > modules\addons\versions.tf
+# Wait for cluster to be fully ready
+echo ""
+echo "⏳ Waiting for cluster to be fully ready..."
+sleep 60
 
-echo Created module files...
+# Configure kubectl and verify connectivity
+CLUSTER_NAME=$(terraform output -raw cluster_id)
+AWS_REGION=$(terraform output -raw aws_region)
 
-REM Create files for dev environment
-echo. > environments\dev\main.tf
-echo. > environments\dev\variables.tf
-echo. > environments\dev\terraform.tfvars
-echo. > environments\dev\backend.tf
-echo. > environments\dev\outputs.tf
-echo. > environments\dev\versions.tf
+echo "Configuring kubectl for cluster: $CLUSTER_NAME"
+aws eks --region "$AWS_REGION" update-kubeconfig --name "$CLUSTER_NAME"
 
-REM Create files for stage environment
-echo. > environments\stage\main.tf
-echo. > environments\stage\variables.tf
-echo. > environments\stage\terraform.tfvars
-echo. > environments\stage\backend.tf
-echo. > environments\stage\outputs.tf
-echo. > environments\stage\versions.tf
+echo "Testing cluster connectivity..."
+kubectl get nodes
+kubectl get pods -A
 
-REM Create files for prod environment
-echo. > environments\prod\main.tf
-echo. > environments\prod\variables.tf
-echo. > environments\prod\terraform.tfvars
-echo. > environments\prod\backend.tf
-echo. > environments\prod\outputs.tf
-echo. > environments\prod\versions.tf
+# Wait for core services to be ready
+echo "Waiting for core services to be ready..."
+kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
 
-echo Created environment files...
+echo "✅ Cluster is ready for ArgoCD deployment"
 
-REM Create shared files
-echo. > shared\locals.tf
-echo. > shared\data.tf
-echo. > shared\variables.tf
+# Phase 2: Deploy ArgoCD with bootstrap
+echo ""
+echo "🚀 PHASE 2: Deploying ArgoCD with Bootstrap"
+echo "=================================================="
 
-REM Create script files
-echo. > scripts\deploy.sh
-echo. > scripts\destroy.sh
-echo. > scripts\plan.sh
-echo. > scripts\switch-env.sh
+echo "Re-enabling ArgoCD bootstrap..."
+terraform apply -var-file='terraform.tfvars' -auto-approve
 
-REM Create README.md
-echo. > README.md
+echo "✅ Phase 2 complete: ArgoCD with bootstrap deployed"
 
-echo Created shared files and scripts...
+# Verify ArgoCD deployment
+echo ""
+echo "🔍 Verifying ArgoCD deployment..."
+kubectl get pods -n argocd
 
-echo.
-echo ✓ Terraform project structure created successfully!
-echo.
-echo Structure created in: %cd%
-echo.
-echo To see the structure, run:
-echo tree terraform /f
-echo.
-echo Or use dir to explore the directories.
+echo "Waiting for ArgoCD server to be ready..."
+kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 
-pause
+echo ""
+echo "🎉 Deployment Complete!"
+echo "================================"
+echo "Cluster: $CLUSTER_NAME"
+echo "Region: $AWS_REGION"
+echo ""
+echo "ArgoCD Access:"
+echo "1. Port forward: kubectl port-forward svc/argocd-server -n argocd 8080:443"
+echo "2. URL: https://localhost:8080"
+echo "3. Username: admin"
+echo "4. Password:"
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+echo ""
+echo ""
+echo "Useful commands:"
+echo "- View applications: kubectl get applications -n argocd"
+echo "- View ArgoCD logs: kubectl logs -l app.kubernetes.io/name=argocd-server -n argocd"
+
+# Cleanup temporary file
+rm -f terraform-phase1.tfvars
+
+echo ""
+echo "✅ Two-phase deployment completed successfully!"

@@ -160,11 +160,11 @@ variable "repo_server_resources" {
 }
 
 # Feature Toggles
-variable "enable_application_set" {
-  description = "Enable ApplicationSet controller"
-  type        = bool
-  default     = true
-}
+# variable "enable_application_set" {
+#   description = "Enable ApplicationSet controller"
+#   type        = bool
+#   default     = true
+# }
 
 variable "enable_notifications" {
   description = "Enable ArgoCD notifications"
@@ -241,8 +241,23 @@ variable "create_storage_classes" {
 }
 
 # Network Security
+# variable "enable_network_policies" {
+#   description = "Enable Kubernetes network policies for ArgoCD"
+#   type        = bool
+#   default     = false
+# }
+
+
+
+
 variable "enable_network_policies" {
   description = "Enable Kubernetes network policies for ArgoCD"
+  type        = bool
+  default     = false
+}
+
+variable "enable_application_set" {
+  description = "Enable ApplicationSet controller and create environment app set"
   type        = bool
   default     = false
 }
