@@ -213,35 +213,3 @@ module "argocd" {
 
   depends_on = [module.eks_addons]
 }
-
-# Monitoring Module (Optional for dev)
-module "monitoring" {
-  count = var.enable_monitoring ? 1 : 0
-
-  source = "../../modules/monitoring"
-
-  cluster_name = module.eks_cluster.cluster_id
-  environment  = local.environment
-
-  # Dev-specific monitoring configuration
-  prometheus_retention = "7d"  # Shorter retention for dev
-  prometheus_storage_size = "20Gi"
-  grafana_storage_size = "5Gi"
-  alertmanager_storage_size = "5Gi"
-
-  # Reduced resource allocation for dev
-  prometheus_resources = {
-    requests = {
-      cpu    = "200m"
-      memory = "1Gi"
-    }
-    limits = {
-      cpu    = "1000m"
-      memory = "2Gi"
-    }
-  }
-
-  common_tags = local.common_tags
-
-  depends_on = [module.eks_cluster]
-}
