@@ -1,12 +1,12 @@
 .env
 
 # Terraform
-#**/.terraform/
-#**/.terraform.lock.hcl
-#*.tfstate
-#*.tfstate.*
-#*.tfvars
-#*.tfplan
-#*.tfplan.*
-#.terraformrc
-#terraform.rc
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+*.tfplan.*
+.terraformrc
+terraform.rc

@@ -68,4 +68,13 @@ output "node_security_group_id" {
   value       = module.eks.node_security_group_id
 }
 
-data "aws_region" "current" {}
+# EKS Addons outputs
+output "cluster_addons" {
+  description = "Map of cluster addon attributes"
+  value = {
+    vpc_cni    = aws_eks_addon.vpc_cni
+    coredns    = aws_eks_addon.coredns
+    kube_proxy = aws_eks_addon.kube_proxy
+    ebs_csi    = aws_eks_addon.ebs_csi
+  }
+}

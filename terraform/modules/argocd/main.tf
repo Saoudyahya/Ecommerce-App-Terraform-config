@@ -56,13 +56,18 @@ resource "helm_release" "argocd" {
         # Resource allocation based on environment
         resources = var.server_resources
 
-        # Additional server configuration for production
+        # Fixed autoscaling configuration - handle conditional properly
         autoscaling = var.environment == "prod" ? {
           enabled = true
           minReplicas = var.server_replicas
           maxReplicas = var.server_replicas * 2
           targetCPUUtilizationPercentage = 80
-        } : {}
+        } : {
+          enabled = false
+          minReplicas = var.server_replicas
+          maxReplicas = var.server_replicas
+          targetCPUUtilizationPercentage = 80
+        }
 
         # Metrics and monitoring
         metrics = {
@@ -127,7 +132,7 @@ resource "helm_release" "argocd" {
         enabled = var.enable_notifications
       }
 
-      # Redis configuration for high availability
+      # Fixed Redis configuration for high availability - handle conditional properly
       redis = var.enable_redis_ha || var.environment == "prod" ? {
         enabled = true
         ha = {
@@ -136,6 +141,10 @@ resource "helm_release" "argocd" {
         }
       } : {
         enabled = true
+        ha = {
+          enabled = false
+          replicas = 1
+        }
       }
     })
   ]
