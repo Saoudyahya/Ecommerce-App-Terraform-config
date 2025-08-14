@@ -1,4 +1,4 @@
-# environments/dev/terraform.tfvars - Optimized for small instances
+# environments/dev/terraform.tfvars - Improved for EKS stability
 
 # Basic Configuration
 aws_region      = "us-east-1"
@@ -20,21 +20,21 @@ public_subnet_cidrs = [
 
 # Cost-optimized networking
 enable_nat_gateway = true
-number_of_azs     = 2  # Only 2 AZs to reduce costs
+number_of_azs     = 2
 
-# MINIMAL Node Group Configuration
+# IMPROVED Node Group Configuration
 node_groups = {
   general = {
-    instance_types      = ["t2.micro"]  # Free tier eligible
+    instance_types      = ["t3.small"]  # Minimum recommended for EKS
     min_size           = 1
-    max_size           = 2
-    desired_size       = 1
-    disk_size          = 20
-    disk_type          = "gp2"          # Free tier eligible
-    disk_iops          = 100            # Default for gp2
+    max_size           = 3
+    desired_size       = 2              # 2 nodes for better stability
+    disk_size          = 30             # Increased for system pods
+    disk_type          = "gp3"
+    disk_iops          = 3000
     disk_throughput    = 125
     ami_type           = "AL2_x86_64"
-    capacity_type      = "ON_DEMAND"
+    capacity_type      = "ON_DEMAND"    # Stable for system components
     user_data_template_path = null
     labels = {
       "node-type" = "general"
@@ -43,21 +43,21 @@ node_groups = {
   }
 }
 
-# EKS Admin Users - Add your IAM users here
+# EKS Admin Users
 eks_admin_users = []
 aws_auth_roles = []
 
-# EKS Addon Versions - Using older, more stable versions
+# COMPATIBLE EKS Addon Versions for 1.28
 addon_versions = {
-  vpc_cni    = "v1.14.1-eksbuild.1"    # Older, more stable
-  coredns    = "v1.10.1-eksbuild.2"    # Older version
-  kube_proxy = "v1.28.1-eksbuild.1"    # Older version
-  ebs_csi    = "v1.23.0-eksbuild.1"    # Older, more stable
+  vpc_cni    = "v1.15.1-eksbuild.1"
+  coredns    = "v1.10.1-eksbuild.5"
+  kube_proxy = "v1.28.2-eksbuild.2"
+  ebs_csi    = "v1.24.0-eksbuild.1"
 }
 
-# ArgoCD Configuration - DISABLED for now
+# ArgoCD Configuration - Start disabled
 argocd_version = "5.46.8"
-bootstrap_argocd     = false  # Disable to reduce resource usage initially
+bootstrap_argocd     = false
 gitops_repo_url      = "https://github.com/ZakariaRek/gitops-repo_ArgoCD"
 gitops_repo_branch   = "develop"
 gitops_repo_path     = "argocd/applications"
