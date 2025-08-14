@@ -1,5 +1,5 @@
 # modules/eks-cluster/outputs.tf
-# Updated outputs for the bypassed EKS module
+# Updated outputs for the corrected EKS module
 
 output "cluster_id" {
   description = "EKS cluster ID"
@@ -42,40 +42,22 @@ output "oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
-# Updated to use our manually created node groups
+# Updated to use our manually created node groups (fixed resource reference)
 output "eks_managed_node_groups" {
   description = "Map of attribute maps for all EKS managed node groups created"
-  value = merge(
-    # Standard node groups
-    {
-      for ng_name, ng in aws_eks_node_group.node_groups : ng_name => {
-      arn           = ng.arn
-      cluster_name  = ng.cluster_name
+  value = {
+    for ng_name, ng in aws_eks_node_group.node_groups : ng_name => {
+      arn             = ng.arn
+      cluster_name    = ng.cluster_name
       node_group_name = ng.node_group_name
-      status        = ng.status
-      capacity_type = ng.capacity_type
-      instance_types = ng.instance_types
-      scaling_config = ng.scaling_config
-      labels        = ng.labels
-      taints        = ng.taint
+      status          = ng.status
+      capacity_type   = ng.capacity_type
+      instance_types  = ng.instance_types
+      scaling_config  = ng.scaling_config
+      labels          = ng.labels
+      taints          = ng.taint
     }
-    },
-    # Node groups with launch templates
-    {
-      for ng_name, ng in aws_eks_node_group.node_groups_with_lt : "${ng_name}-lt" => {
-      arn           = ng.arn
-      cluster_name  = ng.cluster_name
-      node_group_name = ng.node_group_name
-      status        = ng.status
-      capacity_type = ng.capacity_type
-      instance_types = ng.instance_types
-      scaling_config = ng.scaling_config
-      labels        = ng.labels
-      taints        = ng.taint
-      launch_template = ng.launch_template
-    }
-    }
-  )
+  }
   sensitive = true
 }
 
@@ -115,17 +97,5 @@ output "cluster_addons" {
     coredns    = aws_eks_addon.coredns
     kube_proxy = aws_eks_addon.kube_proxy
     ebs_csi    = aws_eks_addon.ebs_csi
-  }
-}
-
-# Launch template information
-output "launch_templates" {
-  description = "Launch templates created for node groups"
-  value = {
-    for ng_name, lt in aws_launch_template.node_group_lt : ng_name => {
-      id           = lt.id
-      latest_version = lt.latest_version
-      name         = lt.name
-    }
   }
 }
