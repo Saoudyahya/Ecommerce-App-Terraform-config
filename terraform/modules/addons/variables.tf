@@ -81,6 +81,31 @@ variable "metrics_server_version" {
   default     = "3.8.3" # Specify a recent, stable version
 }
 
+
+# variable "cert_manager_version" {
+#   description = "The version of the Cert-Manager Helm chart."
+#   type        = string
+#   default     = "v1.11.0" # Specify a recent, stable version
+# }
+#
+# variable "enable_ingress_nginx" {
+#   description = "Flag to enable the Ingress NGINX Controller."
+#   type        = bool
+#   default     = false
+# }
+
+variable "ingress_nginx_version" {
+  description = "The version of the Ingress NGINX Helm chart."
+  type        = string
+  default     = "4.5.2" # Specify a recent, stable version
+}
+
+variable "enable_prometheus_monitoring" {
+  description = "Flag to enable Prometheus monitoring integrations for addons."
+  type        = bool
+  default     = false
+}
+
 variable "enable_cert_manager" {
   description = "Flag to enable Cert-Manager."
   type        = bool
@@ -95,18 +120,6 @@ variable "cert_manager_version" {
 
 variable "enable_ingress_nginx" {
   description = "Flag to enable the Ingress NGINX Controller."
-  type        = bool
-  default     = false
-}
-
-variable "ingress_nginx_version" {
-  description = "The version of the Ingress NGINX Helm chart."
-  type        = string
-  default     = "4.5.2" # Specify a recent, stable version
-}
-
-variable "enable_prometheus_monitoring" {
-  description = "Flag to enable Prometheus monitoring integrations for addons."
   type        = bool
   default     = false
 }

@@ -274,29 +274,29 @@ resource "helm_release" "metrics_server" {
   }
 }
 
-# Cert-Manager (optional)
-module "cert_manager_irsa_role" {
-  count = var.enable_cert_manager ? 1 : 0
-
-  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.0"
-
-  role_name = "${var.cluster_name}-cert-manager"
-
-  # Create custom policy for cert-manager Route53 access
-  role_policy_arns = [
-    aws_iam_policy.cert_manager_route53[0].arn
-  ]
-
-  oidc_providers = {
-    ex = {
-      provider_arn               = var.oidc_provider_arn
-      namespace_service_accounts = ["cert-manager:cert-manager"]
-    }
-  }
-
-  tags = var.common_tags
-}
+# # Cert-Manager (optional)
+# module "cert_manager_irsa_role" {
+#   count = var.enable_cert_manager ? 1 : 0
+#
+#   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+#   version = "~> 5.0"
+#
+#   role_name = "${var.cluster_name}-cert-manager"
+#
+#   # Create custom policy for cert-manager Route53 access
+#   role_policy_arns = [
+#     aws_iam_policy.cert_manager_route53[0].arn
+#   ]
+#
+#   oidc_providers = {
+#     ex = {
+#       provider_arn               = var.oidc_provider_arn
+#       namespace_service_accounts = ["cert-manager:cert-manager"]
+#     }
+#   }
+#
+#   tags = var.common_tags
+# }
 
 resource "aws_iam_policy" "cert_manager_route53" {
   count = var.enable_cert_manager ? 1 : 0
@@ -435,4 +435,29 @@ resource "helm_release" "ingress_nginx" {
     name  = "controller.resources.requests.memory"
     value = var.environment == "prod" ? "1Gi" : "512Mi"
   }
+}
+
+
+# Cert-Manager (optional)
+module "cert_manager_irsa_role" {
+  count = var.enable_cert_manager ? 1 : 0
+
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name = "${var.cluster_name}-cert-manager"
+
+  # Create custom policy for cert-manager Route53 access
+  role_policy_arns = {
+    cert_manager_route53 = aws_iam_policy.cert_manager_route53[0].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = var.oidc_provider_arn
+      namespace_service_accounts = ["cert-manager:cert-manager"]
+    }
+  }
+
+  tags = var.common_tags
 }

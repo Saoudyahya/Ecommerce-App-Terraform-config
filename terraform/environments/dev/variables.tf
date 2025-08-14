@@ -88,23 +88,19 @@ variable "kubernetes_version" {
 variable "node_groups" {
   description = "EKS node groups configuration"
   type = map(object({
-    ami_type        = string
-    instance_types  = list(string)
-    capacity_type   = string
-    scaling_config = object({
-      desired_size = number
-      max_size     = number
-      min_size     = number
-    })
-    update_config = object({
-      max_unavailable_percentage = number
-    })
-    remote_access = optional(object({
-      ec2_ssh_key               = string
-      source_security_group_ids = list(string)
-    }))
-    labels = optional(map(string))
-    taints = optional(list(object({
+    instance_types         = list(string)
+    min_size              = number
+    max_size              = number
+    desired_size          = number
+    disk_size             = number
+    disk_type             = string
+    disk_iops             = number
+    disk_throughput       = number
+    ami_type              = string
+    capacity_type         = string
+    user_data_template_path = optional(string)
+    labels                = optional(map(string))
+    taints = optional(map(object({
       key    = string
       value  = string
       effect = string
@@ -112,25 +108,33 @@ variable "node_groups" {
   }))
   default = {
     general = {
-      ami_type       = "AL2_x86_64"
-      instance_types = ["t3.medium"]
-      capacity_type  = "ON_DEMAND"
-      scaling_config = {
-        desired_size = 2
-        max_size     = 4
-        min_size     = 1
+      instance_types      = ["t3.medium"]
+      min_size           = 2
+      max_size           = 4
+      desired_size       = 2
+      disk_size          = 30
+      disk_type          = "gp3"
+      disk_iops          = 3000
+      disk_throughput    = 125
+      ami_type           = "AL2_x86_64"
+      capacity_type      = "ON_DEMAND"
+      user_data_template_path = null
+      labels = {
+        "node-type" = "general"
       }
-      update_config = {
-        max_unavailable_percentage = 25
-      }
+      taints = null
     }
   }
 }
 
 variable "eks_admin_users" {
   description = "List of IAM users to grant admin access to EKS cluster"
-  type        = list(string)
-  default     = []
+  type = list(object({
+    userarn  = string
+    username = string
+    groups   = list(string)
+  }))
+  default = []
 }
 
 variable "aws_auth_roles" {
@@ -146,12 +150,17 @@ variable "aws_auth_roles" {
 variable "addon_versions" {
   description = "Versions of EKS addons"
   type = object({
-    vpc_cni            = optional(string)
-    coredns            = optional(string)
-    kube_proxy         = optional(string)
-    aws_ebs_csi_driver = optional(string)
+    vpc_cni    = string
+    coredns    = string
+    kube_proxy = string
+    ebs_csi    = string
   })
-  default = {}
+  default = {
+    vpc_cni    = "v1.15.1-eksbuild.1"
+    coredns    = "v1.10.1-eksbuild.5"
+    kube_proxy = "v1.28.2-eksbuild.2"
+    ebs_csi    = "v1.24.0-eksbuild.1"
+  }
 }
 
 variable "domain_name" {
@@ -164,7 +173,7 @@ variable "domain_name" {
 variable "argocd_version" {
   description = "ArgoCD version to install"
   type        = string
-  default     = "v2.8.4"
+  default     = "5.46.8"
 }
 
 variable "bootstrap_argocd" {
@@ -212,6 +221,13 @@ variable "use_custom_project" {
 # Monitoring Configuration
 variable "enable_monitoring" {
   description = "Enable monitoring stack (Prometheus, Grafana, Alertmanager)"
+  type        = bool
+  default     = false
+}
+
+# External DNS Configuration
+variable "enable_external_dns" {
+  description = "Enable external DNS"
   type        = bool
   default     = false
 }

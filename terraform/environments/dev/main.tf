@@ -1,27 +1,5 @@
 # environments/dev/main.tf
 
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.23"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.11"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = "~> 0.9"
-    }
-  }
-}
-
 # Configure AWS Provider
 provider "aws" {
   region = var.aws_region
@@ -162,6 +140,7 @@ module "eks_addons" {
   enable_external_dns      = false  # Disabled for dev
   enable_metrics_server    = true
   enable_aws_load_balancer_controller = true
+  enable_cert_manager      = false  # Disabled for dev
 
   domain_name = var.domain_name
   aws_region  = var.aws_region

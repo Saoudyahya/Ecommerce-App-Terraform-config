@@ -46,6 +46,7 @@ module "eks" {
 }
 
 # Local values for dynamic node group configuration
+# Local values for dynamic node group configuration
 locals {
   node_groups = {
     for ng_name, ng_config in var.node_groups : ng_name => {
@@ -56,8 +57,14 @@ locals {
       max_size     = ng_config.max_size
       desired_size = ng_config.desired_size
 
-      # Conditional taints
-      taints = ng_config.taints != null ? ng_config.taints : {}
+      # Convert taints map to list format expected by EKS module
+      taints = ng_config.taints != null ? [
+        for taint_name, taint_config in ng_config.taints : {
+          key    = taint_config.key
+          value  = taint_config.value
+          effect = taint_config.effect
+        }
+      ] : []
 
       labels = merge(
         {

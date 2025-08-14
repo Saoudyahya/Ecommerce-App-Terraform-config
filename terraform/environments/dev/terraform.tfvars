@@ -1,7 +1,7 @@
 # environments/dev/terraform.tfvars
 
 # Basic Configuration
-aws_region      = "us-west-2"
+aws_region      = "us-east-1"
 project_name    = "nexus-commerce"
 owner           = "Platform Team"
 cost_center     = "Engineering"
@@ -89,8 +89,9 @@ node_groups = {
 
 # EKS Admin Users - Add your IAM users here
 eks_admin_users = [
+  # Example:
   # {
-  #   userarn  = "arn:aws:iam::123456789012:user/your-dev-user"
+  #   userarn  = "arn:aws:iam::388762879261:user/your-dev-user"
   #   username = "your-dev-user"
   #   groups   = ["system:masters"]
   # }

@@ -1,8 +1,8 @@
-# modules/argocd/bootstrap/main.tf
+# modules/argocd/bootstrap.tf
 
 # Create ArgoCD project for better organization (optional)
 resource "kubernetes_manifest" "nexus_project" {
-  count = var.use_custom_project ? 1 : 0
+  count = var.bootstrap_argocd && var.use_custom_project ? 1 : 0
 
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -95,11 +95,13 @@ resource "kubernetes_manifest" "nexus_project" {
       ] : []
     }
   }
+
+  depends_on = [time_sleep.wait_for_argocd]
 }
 
 # Bootstrap the app-of-apps application with default project
 resource "kubernetes_manifest" "app_of_apps_default" {
-  count = !var.use_custom_project ? 1 : 0
+  count = var.bootstrap_argocd && !var.use_custom_project ? 1 : 0
 
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -164,12 +166,13 @@ resource "kubernetes_manifest" "app_of_apps_default" {
       ]
     }
   }
+
+  depends_on = [time_sleep.wait_for_argocd]
 }
 
 # Bootstrap the app-of-apps application with custom project
 resource "kubernetes_manifest" "app_of_apps_custom" {
-  count = var.use_custom_project ? 1 : 0
-  depends_on = [kubernetes_manifest.nexus_project]
+  count = var.bootstrap_argocd && var.use_custom_project ? 1 : 0
 
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -238,11 +241,13 @@ resource "kubernetes_manifest" "app_of_apps_custom" {
       ]
     }
   }
+
+  depends_on = [time_sleep.wait_for_argocd, kubernetes_manifest.nexus_project]
 }
 
 # Create initial application set for environment-specific deployments (optional)
 resource "kubernetes_manifest" "environment_app_set" {
-  count = var.enable_application_set ? 1 : 0
+  count = var.bootstrap_argocd && var.enable_application_set ? 1 : 0
 
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -293,4 +298,6 @@ resource "kubernetes_manifest" "environment_app_set" {
       }
     }
   }
+
+  depends_on = [time_sleep.wait_for_argocd]
 }
