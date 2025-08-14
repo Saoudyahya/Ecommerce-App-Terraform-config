@@ -1,5 +1,5 @@
 # modules/eks-cluster/main.tf
-# Fixed version with correct resource references
+# Improved version with better add-on handling and timeouts
 
 # Data sources
 data "aws_availability_zones" "available" {
@@ -133,7 +133,7 @@ resource "aws_eks_node_group" "node_groups" {
       key    = "CriticalAddonsOnly"
       value  = "true"
       effect = "NO_SCHEDULE"
-}
+    }
   }
 
   tags = merge(var.common_tags, {
@@ -147,12 +147,18 @@ resource "aws_eks_node_group" "node_groups" {
     aws_iam_role_policy_attachment.node_group_registry_policy,
     module.eks
   ]
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
 }
 
-# Wait for nodes to be ready before installing add-ons
+# Wait for nodes to be ready and healthy
 resource "time_sleep" "wait_for_nodes" {
   depends_on = [aws_eks_node_group.node_groups]
-  create_duration = "180s"  # Wait 3 minutes for nodes to be ready
+  create_duration = "300s"  # Wait 5 minutes for nodes to be fully ready
 }
 
 # EBS CSI Driver IRSA Role
@@ -178,42 +184,99 @@ resource "aws_eks_addon" "vpc_cni" {
   cluster_name         = module.eks.cluster_name
   addon_name           = "vpc-cni"
   addon_version        = var.addon_versions.vpc_cni
-  resolve_conflicts    = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [time_sleep.wait_for_nodes]
-}
 
-resource "aws_eks_addon" "coredns" {
-  cluster_name      = module.eks.cluster_name
-  addon_name        = "coredns"
-  addon_version     = var.addon_versions.coredns
-  resolve_conflicts = "OVERWRITE"
-
-  depends_on = [
-    time_sleep.wait_for_nodes,
-    aws_eks_addon.vpc_cni
-  ]
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
 }
 
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name      = module.eks.cluster_name
   addon_name        = "kube-proxy"
   addon_version     = var.addon_versions.kube_proxy
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [time_sleep.wait_for_nodes]
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
 }
 
+# CoreDNS - Deploy after VPC CNI is ready
+resource "aws_eks_addon" "coredns" {
+  cluster_name      = module.eks.cluster_name
+  addon_name        = "coredns"
+  addon_version     = var.addon_versions.coredns
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  # CoreDNS configuration to work better with smaller instances
+  configuration_values = jsonencode({
+    replicaCount = var.environment == "prod" ? 2 : 1
+    resources = {
+      limits = {
+        cpu    = var.environment == "prod" ? "200m" : "100m"
+        memory = var.environment == "prod" ? "170Mi" : "128Mi"
+      }
+      requests = {
+        cpu    = "50m"
+        memory = "64Mi"
+      }
+    }
+  })
+
+  depends_on = [
+    time_sleep.wait_for_nodes,
+    aws_eks_addon.vpc_cni
+  ]
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
+}
+
+# EBS CSI - Deploy last after cluster is stable
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name             = module.eks.cluster_name
   addon_name               = "aws-ebs-csi-driver"
   addon_version            = var.addon_versions.ebs_csi
   service_account_role_arn = module.ebs_csi_irsa_role.iam_role_arn
-  resolve_conflicts        = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [
     time_sleep.wait_for_nodes,
     aws_eks_addon.vpc_cni,
+    aws_eks_addon.coredns,
     module.ebs_csi_irsa_role
   ]
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
+}
+
+# Final wait to ensure all add-ons are stable
+resource "time_sleep" "wait_for_addons" {
+  depends_on = [
+    aws_eks_addon.vpc_cni,
+    aws_eks_addon.kube_proxy,
+    aws_eks_addon.coredns,
+    aws_eks_addon.ebs_csi
+  ]
+  create_duration = "60s"
 }
